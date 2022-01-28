@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "cstddef": "c"
+    },
+    "files.exclude": {
+        "**/*.o": true,
+        "_*": true
+    }
+}
