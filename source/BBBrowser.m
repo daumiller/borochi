@@ -29,6 +29,9 @@ void bbInformation(NSString* message) {
         [self initWindow];
         [self initMenu];
         [self initToolbar];
+        // TODO : bookmarks
+        //        - either a NSTitlebarAccessoryViewController,
+        //        - or, a sidebar (https://developer.apple.com/design/human-interface-guidelines/macos/windows-and-views/sidebars/)
         [self initWebkitWithConfiguration:configuration];
 
         // auto-active the address bar,
@@ -104,8 +107,8 @@ void bbInformation(NSString* message) {
 }
 
 -(void)windowWillClose:(NSNotification*)notification {
-    // remove our Observer on self.webview.title
-    [self.webview removeObserver:self forKeyPath:@"title" context:NULL];
+    // let webview remove its observers
+    [self cleanupWebKit];
 
     BBApplication* app = [NSApp delegate];
     [app browserClosed:self];
@@ -121,7 +124,11 @@ typedef NS_ENUM(NSInteger, BBMenuTag) {
     BBMenuTagEditSelectAll,
     BBMenuTagEditSelectNone,
     BBMenuTagEditUndo,
-    BBMenuTagEditRedo
+    BBMenuTagEditRedo,
+    BBMenuTagNavigateHome,
+    BBMenuTagNavigateBackward,
+    BBMenuTagNavigateForward,
+    BBMenuTagNavigateReload
 };
 
 -(void)initMenu {
@@ -158,6 +165,17 @@ typedef NS_ENUM(NSInteger, BBMenuTag) {
         menu_editGroup = nil;
         menu_editItem = nil;
 
+        // Navigate Menu
+        NSMenuItem* menu_navigateItem = [menu addItemWithTitle:@"" action:NULL keyEquivalent:@""];
+        NSMenu* menu_navigateGroup = [[NSMenu alloc] initWithTitle:@"Navigate"];
+        [menu_navigateItem setSubmenu:menu_navigateGroup];
+        item = [menu_navigateGroup addItemWithTitle:@"Home"     action:@selector(menuNavigateHandler:) keyEquivalent:@"h"]; [item setTag:BBMenuTagNavigateHome]; [item setKeyEquivalentModifierMask:(NSEventModifierFlagShift|NSEventModifierFlagCommand)];
+               [menu_navigateGroup addItem:[NSMenuItem separatorItem]];
+        item = [menu_navigateGroup addItemWithTitle:@"Backward" action:@selector(menuNavigateHandler:) keyEquivalent:@"["]; [item setTag:BBMenuTagNavigateBackward];
+        item = [menu_navigateGroup addItemWithTitle:@"Forward"  action:@selector(menuNavigateHandler:) keyEquivalent:@"]"]; [item setTag:BBMenuTagNavigateForward];
+               [menu_navigateGroup addItem:[NSMenuItem separatorItem]];
+        item = [menu_navigateGroup addItemWithTitle:@"Reload"   action:@selector(menuNavigateHandler:) keyEquivalent:@"r"]; [item setTag:BBMenuTagNavigateReload];
+
         menu = nil;
     }
 }
@@ -184,16 +202,42 @@ typedef NS_ENUM(NSInteger, BBMenuTag) {
     }
 }
 
+-(void)menuNavigateHandler:(NSMenuItem*)sender {
+    if(!self.webview) { return; }
+
+    switch([sender tag]) {
+        case BBMenuTagNavigateHome:     /* TODO */                       break;
+        case BBMenuTagNavigateBackward: [self.webview goBack          ]; break;
+        case BBMenuTagNavigateForward:  [self.webview goForward       ]; break;
+        case BBMenuTagNavigateReload:   [self.webview reloadFromOrigin]; break;
+    }
+}
+
+-(BOOL)validateMenuItem:(NSMenuItem*)item {
+    switch([item tag]) {
+        case BBMenuTagNavigateBackward: return (self.webview == nil) ? NO : [self.webview canGoBack   ];
+        case BBMenuTagNavigateForward : return (self.webview == nil) ? NO : [self.webview canGoForward];
+    }
+
+    return YES;
+}
+
 // === Toolbar functions ========================================================================================================
-#define TOOLBAR_IDENTIFIER_MAIN          @"BB.Toolbar.Main"
-#define TOOLBAR_IDENTIFIER_MAIN_ADDRESS  @"BB.Toolbar.Main.Address"
-#define TOOLBAR_IDENTIFIER_MAIN_BACKWARD @"BB.Toolbar.Main.Backward"
-#define TOOLBAR_IDENTIFIER_MAIN_FORWARD  @"BB.Toolbar.Main.Forward"
+#define TOOLBAR_IDENTIFIER_MAIN             @"BB.Toolbar.Main"
+#define TOOLBAR_IDENTIFIER_MAIN_ADDRESS     @"BB.Toolbar.Main.Address"
+#define TOOLBAR_IDENTIFIER_MAIN_BACKWARD    @"BB.Toolbar.Main.Backward"
+#define TOOLBAR_IDENTIFIER_MAIN_FORWARD     @"BB.Toolbar.Main.Forward"
+#define TOOLBAR_IDENTIFIER_MAIN_RELOAD      @"BB.Toolbar.Main.Reload"
+#define TOOLBAR_IDENTIFIER_MAIN_HOME        @"BB.Toolbar.Main.Home"
+#define TOOLBAR_IDENTIFIER_MAIN_PREFERENCES @"BB.Toolbar.Main.Preferences"
 
 typedef NS_ENUM(NSInteger, BBToolbarTag) {
     BBToolbarTagMainAddress,
     BBToolbarTagMainBackward,
-    BBToolbarTagMainForward
+    BBToolbarTagMainForward,
+    BBToolbarTagMainReload,
+    BBToolbarTagMainHome,
+    BBToolbarTagMainPreferences
 };
 
 -(void)initToolbar {
@@ -215,7 +259,7 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
         [item setBordered:YES];
         [item setTarget:self];
         [item setAction:@selector(toolbarItemClicked:)];
-        [item setImage:[NSImage imageNamed:NSImageNameTouchBarGoBackTemplate]];
+        [item setImage:[NSImage imageNamed:NSImageNameGoBackTemplate]];
         return item;
     }
 
@@ -228,7 +272,43 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
         [item setTarget:self];
         [item setAction:@selector(toolbarItemClicked:)];
         // https://developer.apple.com/design/human-interface-guidelines/macos/touch-bar/touch-bar-glyphs-and-images/
-        [item setImage:[NSImage imageNamed:NSImageNameTouchBarGoForwardTemplate]];
+        [item setImage:[NSImage imageNamed:NSImageNameGoForwardTemplate]];
+        return item;
+    }
+
+    if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_RELOAD]) {
+        NSToolbarItem* item = [[NSToolbarItem alloc] initWithItemIdentifier:identifier];
+        [item setLabel:@"Reload"];
+        [item setToolTip:@"Reload the Current Page"];
+        [item setTag:BBToolbarTagMainReload];
+        [item setBordered:YES];
+        [item setTarget:self];
+        [item setAction:@selector(toolbarItemClicked:)];
+        [item setImage:[NSImage imageNamed:NSImageNameTouchBarRefreshTemplate]];
+        return item;
+    }
+
+    if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_HOME]) {
+        NSToolbarItem* item = [[NSToolbarItem alloc] initWithItemIdentifier:identifier];
+        [item setLabel:@"Home"];
+        [item setToolTip:@"Navigate to your Home Page"];
+        [item setTag:BBToolbarTagMainHome];
+        [item setBordered:YES];
+        [item setTarget:self];
+        [item setAction:@selector(toolbarItemClicked:)];
+        [item setImage:[NSImage imageNamed:NSImageNameHomeTemplate]];
+        return item;
+    }
+
+    if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_PREFERENCES]) {
+        NSToolbarItem* item = [[NSToolbarItem alloc] initWithItemIdentifier:identifier];
+        [item setLabel:@"Preferences"];
+        [item setToolTip:@"Edit your Preferences"];
+        [item setTag:BBToolbarTagMainPreferences];
+        [item setBordered:YES];
+        [item setTarget:self];
+        [item setAction:@selector(toolbarItemClicked:)];
+        [item setImage:[NSImage imageNamed:NSImageNameSmartBadgeTemplate]];
         return item;
     }
 
@@ -244,7 +324,7 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
         [item setToolTip:@"Enter a web address or search term."];
         [item setTag:BBToolbarTagMainAddress];
         [item setBordered:YES];
-        // TODO : use "constraints" instead???
+        // TODO : minSize/maxSize are going away; but i haven't found how to auto-expand this field without them
         NSSize minSize=[item minSize]; minSize.width= 128; [item setMinSize:minSize];
         NSSize maxSize=[item maxSize]; maxSize.width=4096; [item setMaxSize:maxSize];
         [item setView:self.addressBar];
@@ -255,11 +335,23 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
 }
 
 -(NSArray<NSToolbarItemIdentifier>*)toolbarAllowedItemIdentifiers:(NSToolbar*)toolbar {
-    return @[ TOOLBAR_IDENTIFIER_MAIN_BACKWARD, TOOLBAR_IDENTIFIER_MAIN_FORWARD, TOOLBAR_IDENTIFIER_MAIN_ADDRESS ];
+    return @[
+        TOOLBAR_IDENTIFIER_MAIN_BACKWARD,
+        TOOLBAR_IDENTIFIER_MAIN_FORWARD,
+        TOOLBAR_IDENTIFIER_MAIN_ADDRESS,
+        TOOLBAR_IDENTIFIER_MAIN_RELOAD,
+        TOOLBAR_IDENTIFIER_MAIN_HOME,
+        TOOLBAR_IDENTIFIER_MAIN_PREFERENCES
+    ];
 }
 
 -(NSArray<NSToolbarItemIdentifier>*)toolbarDefaultItemIdentifiers:(NSToolbar*)toolbar {
-    return [self toolbarAllowedItemIdentifiers:toolbar];
+    return @[
+        TOOLBAR_IDENTIFIER_MAIN_BACKWARD,
+        TOOLBAR_IDENTIFIER_MAIN_FORWARD,
+        TOOLBAR_IDENTIFIER_MAIN_ADDRESS,
+        TOOLBAR_IDENTIFIER_MAIN_PREFERENCES
+    ];
 }
 
 -(NSArray<NSToolbarItemIdentifier>*)toolbarSelectableItemIdentifiers:(NSToolbar*)toolbar {
@@ -270,17 +362,20 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
     if(self.webview == nil) { return NO; }
 
     switch([item tag]) {
-        case BBToolbarTagMainBackward: return [self.webview canGoBack   ]; break;
-        case BBToolbarTagMainForward : return [self.webview canGoForward]; break;
+        case BBToolbarTagMainBackward: return [self.webview canGoBack   ];
+        case BBToolbarTagMainForward : return [self.webview canGoForward];
     }
 
-    return NO;
+    return YES;
 }
 
 -(void)toolbarItemClicked:(NSToolbarItem*)item {
     switch([item tag]) {
-        case BBToolbarTagMainBackward: [self.webview goBack   ]; break;
-        case BBToolbarTagMainForward : [self.webview goForward]; break;
+        case BBToolbarTagMainBackward    : [self.webview goBack          ]; break;
+        case BBToolbarTagMainForward     : [self.webview goForward       ]; break;
+        case BBToolbarTagMainReload      : [self.webview reloadFromOrigin]; break;
+        case BBToolbarTagMainHome        : /* TODO */ break;
+        case BBToolbarTagMainPreferences : /* TODO */ break;
     }
 }
 
@@ -308,7 +403,17 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
     [self.window setContentView:self.webview];
 
     // observe changes to [self.webview title], and set our window/tab title on any change
-    [self.webview addObserver:self forKeyPath:@"title" options:NSKeyValueObservingOptionNew context:NULL];
+    [self.webview addObserver:self forKeyPath:@"title"             options:NSKeyValueObservingOptionNew context:NULL];
+    [self.webview addObserver:self forKeyPath:@"loading"           options:NSKeyValueObservingOptionNew context:NULL];
+    [self.webview addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:NULL];
+}
+
+-(void)cleanupWebKit {
+    // remove our Observers
+    [self.webview removeObserver:self forKeyPath:@"title"             context:NULL];
+    [self.webview removeObserver:self forKeyPath:@"loading"           context:NULL];
+    [self.webview removeObserver:self forKeyPath:@"estimatedProgress" context:NULL];
+
 }
 
 -(void)webView:(WKWebView*)webview didStartProvisionalNavigation:(WKNavigation*)navigation {
@@ -339,6 +444,17 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
 -(void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey, id>*)change context:(void*)context {
     if([keyPath isEqual:@"title"]) {
         [self.window setTitle:self.webview.title];
+        return;
+    }
+
+    if([keyPath isEqual:@"loading"]) {
+        [self.addressBar setLoading:[self.webview isLoading]];
+        return;
+    }
+
+    if([keyPath isEqual:@"estimatedProgress"]) {
+        [self.addressBar setProgress:[self.webview estimatedProgress]];
+        return;
     }
 }
 

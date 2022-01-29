@@ -24,8 +24,10 @@
 -(void)windowWillClose:(NSNotification*)notification;
 
 // === Menu functions ===========================================================================================================
--(void)menuAppHandler :(NSMenuItem*)sender;
--(void)menuEditHandler:(NSMenuItem*)sender;
+-(void)menuAppHandler     :(NSMenuItem*)sender;
+-(void)menuEditHandler    :(NSMenuItem*)sender;
+-(void)menuNavigateHandler:(NSMenuItem*)sender;
+-(BOOL)validateMenuItem   :(NSMenuItem*)item;
 
 // === Toolbar functions ========================================================================================================
 -(NSToolbarItem*)toolbar:(NSToolbar*)toolbar itemForItemIdentifier:(NSString*)identifier willBeInsertedIntoToolbar:(BOOL)insert;

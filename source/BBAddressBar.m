@@ -13,4 +13,26 @@
     return YES;
 }
 
+-(void)setLoading:(BOOL)loading {
+    _loading = loading;
+    [self setNeedsDisplay:YES];
+}
+
+-(void)setProgress:(double)progress {
+    _progress = progress;
+    [self setNeedsDisplay:YES];
+}
+
+-(void)drawRect:(NSRect)dirtyRect {
+    [super drawRect:dirtyRect];
+
+    if(_loading) {
+        NSRect progressRect = [self bounds];
+        progressRect.size.width *= _progress;
+
+        [[NSColor keyboardFocusIndicatorColor] set];
+        NSRectFillUsingOperation(progressRect, NSCompositingOperationSourceOver);
+    }
+}
+
 @end
