@@ -1,6 +1,7 @@
 {
     "files.associations": {
-        "cstddef": "c"
+        "cstddef": "c",
+        "*.h": "objective-c"
     },
     "files.exclude": {
         "**/*.o": true,

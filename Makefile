@@ -1,36 +1,52 @@
 COMPILER = clang
+APP_NAME = borochi
 
-RELEASE_CC_FLAGS   = -fcolor-diagnostics -std=c99
+RELEASE_CC_FLAGS   = -fcolor-diagnostics -std=c99 -I./header
 RELEASE_CC_ERRORS  = -Wall
 RELEASE_LN_FLAGS   = -framework AppKit -framework WebKit -lobjc
-RELEASE_OBJECTS    = main.o
-RELEASE_TARGET     = shiny
+RELEASE_OBJECTS    = build/main.o          \
+                     build/BBApplication.o \
+					 build/BBBrowser.o     \
+					 build/BBAddressBar.o
+RELEASE_TARGET     = build/$(APP_NAME)
 
 DEBUG_CC_FLAGS  = $(RELEASE_CC_FLAGS) --debug
 DEBUG_CC_ERRORS = $(RELEASE_CC_ERRORS)
-DEBUG_LN_FLAGS  = -framework AppKit -framework WebKit -lobjc
-DEBUG_OBJECTS   = main-debug.o
-DEBUG_TARGET    = shiny-debug
+DEBUG_LN_FLAGS  = $(RELEASE_LN_FLAGS)
+DEBUG_OBJECTS   = build/main-debug.o          \
+                  build/BBApplication-debug.o \
+				  build/BBBrowser-debug.o     \
+				  build/BBAddressBar-debug.o
+DEBUG_TARGET    = build/$(APP_NAME)-debug
 
-all: release
+all: app
+
+app: release
+	rm -rf build/$(APP_NAME).app
+	cp -R resource/app-template build/$(APP_NAME).app
+	mkdir -p build/$(APP_NAME).app/Contents/MacOS
+	cp $(RELEASE_TARGET) build/$(APP_NAME).app/Contents/MacOS/
+	touch build/$(APP_NAME).app
+
+run: app
+	open ./build/borochi.app
 
 release: $(RELEASE_OBJECTS)
 	$(COMPILER) $(RELEASE_LN_FLAGS) $(RELEASE_OBJECTS) -o $(RELEASE_TARGET)
-	cp $(RELEASE_TARGET) ./Shiny.app/Contents/MacOS
 
 debug: $(DEBUG_OBJECTS)
 	$(COMPILER) $(DEBUG_LN_FLAGS) $(DEBUG_OBJECTS) -o $(DEBUG_TARGET)
 
-%.o: %.c
+build/%.o: source/%.c
 	$(COMPILER) $(RELEASE_CC_FLAGS) $(RELEASE_CC_ERRORS) -c $^ -o $@
 
-%.o: %.m
+build/%.o: source/%.m
 	$(COMPILER) $(RELEASE_CC_FLAGS) $(RELEASE_CC_ERRORS) -c $^ -o $@
 
-%-debug.o: %.c
+build/%-debug.o: source/%.c
 	$(COMPILER) $(DEBUG_CC_FLAGS) $(DEBUG_CC_ERRORS) -c $^ -o $@
 
-%-debug.o: %.m
+build/%-debug.o: source/%.m
 	$(COMPILER) $(DEBUG_CC_FLAGS) $(DEBUG_CC_ERRORS) -c $^ -o $@
 
 clean:
@@ -40,7 +56,10 @@ clean:
 veryclean: clean
 	rm -f $(RELEASE_TARGET)
 	rm -f $(DEBUG_TARGET)
+	rm -rf build/$(APP_NAME).app
 
 rerelease: veryclean release
 
 redebug: veryclean debug
+
+remake: rerelease

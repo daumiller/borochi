@@ -2,7 +2,7 @@
     "configurations": [
         {
             "name": "MacOS",
-            "includePath": ["${workspaceFolder}/dependencies"],
+            "includePath": ["${workspaceFolder}/header"],
             "defines": [],
             "compilerPath": "/usr/bin/clang",
             "cStandard": "c99",

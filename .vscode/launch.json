@@ -2,10 +2,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "shiny - release",
+            "name": "borochi - release",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/shiny",
+            "program": "${workspaceFolder}/build/borochi",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -15,10 +15,10 @@
             "preLaunchTask": "Make Release"
         },
         {
-            "name": "shiny - debug",
+            "name": "borochi - debug",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/shiny-debug",
+            "program": "${workspaceFolder}/build/borochi-debug",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

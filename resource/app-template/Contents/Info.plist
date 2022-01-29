@@ -2,35 +2,54 @@
 
 <dict>
 	<key>CFBundleExecutable</key>
-		<string>shiny</string>
+		<string>borochi</string>
+
 	<key>CFBundleGetInfoString</key>
-		<string>Shiny GUI</string>
+		<string>borochi browser</string>
+
 	<key>CFBundleIconFile</key>
-		<string>shiny.icns</string>
+		<string>borochi.icns</string>
+
 	<key>CFBundleIdentifier</key>
-		<string>io.cherrybomb.shiny</string>
+		<string>io.cherrybomb.borochi</string>
+
 	<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
+
 	<key>CFBundleName</key>
-		<string>Shiny</string>
+		<string>borochi</string>
+
 	<key>CFBundlePackageType</key>
 		<string>APPL</string>
+
 	<key>CFBundleShortVersionString</key>
-		<string>0.1.0</string>
+		<string>0.2.0</string>
+
 	<key>CFBundleSignature</key>
 		<string>????</string>
+
 	<key>CFBundleVersion</key>
-		<string>0.1.0</string>
+		<string>0.2.0</string>
+
 	<key>NSHighResolutionCapable</key>
 		<true/>
+
 	<key>CFBundleDevelopmentRegion</key>
 		<string>English</string>
+
 	<key>CFBundleLocalizations</key>
 		<array>
 			<string>en</string>
 		</array>
+
 	<key>CFBundleDisplayName</key>
-    <string>Shiny</string>
+    <string>borochi</string>
+
+	<key>NSSupportsAutomaticTermination<key>
+	<false/>
+
+	<key>NSSupportsSuddenTermination</key>
+	<false/>
 </dict>
 
 </plist>
