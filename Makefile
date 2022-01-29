@@ -6,8 +6,8 @@ RELEASE_CC_ERRORS  = -Wall
 RELEASE_LN_FLAGS   = -framework AppKit -framework WebKit -lobjc
 RELEASE_OBJECTS    = build/main.o          \
                      build/BBApplication.o \
-					 build/BBBrowser.o     \
-					 build/BBAddressBar.o
+                     build/BBBrowser.o     \
+                     build/BBAddressBar.o
 RELEASE_TARGET     = build/$(APP_NAME)
 
 DEBUG_CC_FLAGS  = $(RELEASE_CC_FLAGS) --debug
@@ -15,8 +15,8 @@ DEBUG_CC_ERRORS = $(RELEASE_CC_ERRORS)
 DEBUG_LN_FLAGS  = $(RELEASE_LN_FLAGS)
 DEBUG_OBJECTS   = build/main-debug.o          \
                   build/BBApplication-debug.o \
-				  build/BBBrowser-debug.o     \
-				  build/BBAddressBar-debug.o
+                  build/BBBrowser-debug.o     \
+                  build/BBAddressBar-debug.o
 DEBUG_TARGET    = build/$(APP_NAME)-debug
 
 all: app

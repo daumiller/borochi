@@ -45,11 +45,6 @@
 	<key>CFBundleDisplayName</key>
     <string>borochi</string>
 
-	<key>NSSupportsAutomaticTermination<key>
-	<false/>
-
-	<key>NSSupportsSuddenTermination</key>
-	<false/>
 </dict>
 
 </plist>
