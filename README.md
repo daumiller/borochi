@@ -9,6 +9,6 @@ goals
     - ublock origin support (will probably require extensions-in-general support)
 - keychain integration
     - autofill passwords
-    - suggeest new passwords
+    - suggest new passwords
     - save new passwords
 

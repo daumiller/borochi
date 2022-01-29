@@ -31,6 +31,10 @@ void bbInformation(NSString* message) {
     [self initToolbar];
     [self initWebkit];
 
+    // auto-active the address bar,
+    // so we can CMD+T & immediately type a new address
+    [window makeFirstResponder:addressBar];
+
     return self;
 }
 
@@ -314,20 +318,8 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
 // === WebKit functions =========================================================================================================
 -(void)initWebkit {
     WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
-    [[config preferences] setValue:@YES forKey:@"developerExtrasEnabled"];
-    [[config preferences] setValue:@YES forKey:@"fullScreenEnabled"];
-    [[config preferences] setValue:@YES forKey:@"javaScriptCanAccessClipboard"];
-    [[config preferences] setValue:@YES forKey:@"DOMPasteAllowed"];
-    // WKUserContentController* content_controller = [config userContentController];
-    // [content_controller addScriptMessageHandler:self name:@"nativeAlert"];
-
-    webview = [[WKWebView alloc] initWithFrame:CGRectMake(0,0,0,0) configuration:config];
+    [self initWebkitWithConfiguration:config];
     [config release];
-    [webview setNavigationDelegate:self];
-    [webview setUIDelegate:self];
-
-    [window setContentView:webview];
-    [window makeFirstResponder:webview];
 }
 
 -(void)initWebkitWithConfiguration:(WKWebViewConfiguration*)configuration {
@@ -335,6 +327,8 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
     [[configuration preferences] setValue:@YES forKey:@"fullScreenEnabled"];
     [[configuration preferences] setValue:@YES forKey:@"javaScriptCanAccessClipboard"];
     [[configuration preferences] setValue:@YES forKey:@"DOMPasteAllowed"];
+    // WKUserContentController* content_controller = [config userContentController];
+    // [content_controller addScriptMessageHandler:self name:@"nativeAlert"];
 
     webview = [[WKWebView alloc] initWithFrame:CGRectMake(0,0,0,0) configuration:configuration];
     [webview setNavigationDelegate:self];
@@ -342,6 +336,9 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
 
     [window setContentView:webview];
     [window makeFirstResponder:webview];
+
+    // observe changes to [webview title], and set our window/tab title on any change
+    [webview addObserver:self forKeyPath:@"title" options:NSKeyValueObservingOptionNew context:NULL];
 }
 
 -(WKWebView*)webview {
@@ -353,9 +350,9 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
     webview = nil;
 }
 
--(void)webView:(WKWebView*)webView didStartProvisionalNavigation:(WKNavigation*)navigation {
+-(void)webView:(WKWebView*)sourceWebview didStartProvisionalNavigation:(WKNavigation*)navigation {
     NSURL* address_old = address;
-    address = [[NSURL alloc] initWithString:[[webview URL] absoluteString]];
+    address = [[NSURL alloc] initWithString:[[sourceWebview URL] absoluteString]];
     if(address_old) { [address_old release]; }
 
     if(addressBar != nil) {
@@ -363,7 +360,11 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
     }
 }
 
--(WKWebView*)webView:(WKWebView*)webView createWebViewWithConfiguration:(WKWebViewConfiguration*)configuration forNavigationAction:(WKNavigationAction*)navigationAction windowFeatures:(WKWindowFeatures*)windowFeatures {
+-(void)webView:(WKWebView*)sourceWebview didFinishNavigation:(WKNavigation*)navigation {
+    // was setting title here, but just KVO-observing it now
+}
+
+-(WKWebView*)webView:(WKWebView*)sourceWebview createWebViewWithConfiguration:(WKWebViewConfiguration*)configuration forNavigationAction:(WKNavigationAction*)navigationAction windowFeatures:(WKWindowFeatures*)windowFeatures {
     if([navigationAction targetFrame] && [[navigationAction targetFrame] isMainFrame]) {
         return nil;
     }
@@ -375,6 +376,12 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
 }
 
 -(void)userContentController:(WKUserContentController*)userContentController didReceiveScriptMessage:(WKScriptMessage*)message {
+}
+
+-(void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey, id>*)change context:(void*)context {
+    if([keyPath isEqual:@"title"]) {
+        [window setTitle:[webview title]];
+    }
 }
 
 @end

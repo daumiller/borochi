@@ -41,7 +41,9 @@
 // === WebKit functions =========================================================================================================
 -(WKWebView*)webview;
 -(void)webView:(WKWebView*)webView didStartProvisionalNavigation:(WKNavigation*)navigation;
+-(void)webView:(WKWebView*)webView didFinishNavigation:(WKNavigation*)navigation;
 -(WKWebView*)webView:(WKWebView*)webView createWebViewWithConfiguration:(WKWebViewConfiguration*)configuration forNavigationAction:(WKNavigationAction*)navigationAction windowFeatures:(WKWindowFeatures*)windowFeatures;
 -(void)userContentController:(WKUserContentController*)userContentController didReceiveScriptMessage:(WKScriptMessage*)message;
+-(void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey, id>*)change context:(void*)context;
 
 @end
