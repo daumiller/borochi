@@ -1,7 +1,7 @@
 COMPILER = clang
 APP_NAME = borochi
 
-RELEASE_CC_FLAGS   = -fcolor-diagnostics -std=c99 -I./header
+RELEASE_CC_FLAGS   = -fcolor-diagnostics -std=c99 -I./header -fobjc-arc
 RELEASE_CC_ERRORS  = -Wall
 RELEASE_LN_FLAGS   = -framework AppKit -framework WebKit -lobjc
 RELEASE_OBJECTS    = build/main.o          \

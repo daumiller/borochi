@@ -4,13 +4,17 @@
 
 @implementation BBApplication
 
--(BBApplication*)init {
+-(instancetype)init {
     self = [super init];
-    browser_list = [[NSMutableArray alloc] init];
+    if(self) {
+        // init with an empty list; we'll add a starting window in applicationDidFinishLaunching
+        self.browserList = [[NSMutableArray alloc] init];
+    }
     return self;
 }
 
 -(void)applicationDidFinishLaunching:(NSNotification*)notification {
+    // TODO : restore state (previous pages) at startup
     [self newTabWithURL:nil];
 }
 
@@ -22,21 +26,8 @@
 }
 
 -(BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)sender {
-    // we'll handle this ourselves
+    // we'll handle this ourselves; in browserClosed
     return NO;
-}
-
--(void)applicationWillTerminate {
-    // this never gets called...
-    // ( https://developer.apple.com/forums/thread/126418 )
-    while([browser_list count] > 0) {
-        BBBrowser* bbb = [browser_list lastObject];
-        [browser_list removeLastObject];
-        [bbb release];
-    }
-
-    [browser_list release];
-    browser_list = nil;
 }
 
 -(void)application:(NSApplication*)application openURLs:(NSArray<NSURL*>*)urls {
@@ -50,48 +41,33 @@
 }
 
 -(BBBrowser*)newTabWithURL:(NSURL*)url {
-    BBBrowser* bbb = [[BBBrowser alloc] init];
-    if(url != nil) {
-        [bbb navigateToURL:url];
-    } else {
-        [bbb navigateToString:@"about:blank"];
-    }
-
-    if([browser_list count] > 0) {
-        [[[browser_list lastObject] window] addTabbedWindow:[bbb window] ordered:NSWindowAbove];
-    }
-    [browser_list addObject:bbb];
-
-    return bbb;
+    return [self newTabWithURL:url andConfiguration:nil];
 }
 
 -(BBBrowser*)newTabWithURL:(NSURL*)url andConfiguration:(WKWebViewConfiguration*)configuration {
     BBBrowser* bbb = [[BBBrowser alloc] initWithConfiguration:configuration];
+
     if(url != nil) {
         [bbb navigateToURL:url];
     } else {
         [bbb navigateToString:@"about:blank"];
     }
 
-    if([browser_list count] > 0) {
-        [[[browser_list lastObject] window] addTabbedWindow:[bbb window] ordered:NSWindowAbove];
+    if([self.browserList count] > 0) {
+        [[self.browserList lastObject].window addTabbedWindow:bbb.window ordered:NSWindowAbove];
     }
-    [browser_list addObject:bbb];
+    [self.browserList addObject:bbb];
 
     return bbb;
 }
 
 -(void)browserClosed:(BBBrowser*)browser {
-    NSUInteger index = [browser_list indexOfObject:browser];
+    NSUInteger index = [self.browserList indexOfObject:browser];
     if(index == NSNotFound) { return; } // shouldn't ever happen
 
-    [browser_list removeObjectAtIndex:index];
+    [self.browserList removeObjectAtIndex:index];
 
-    // TODO : track down how/when these can be released without crashing
-    //        current solution will become resource hog (maybe that's what happens to safar? 😅)
-    // [browser release];
-
-    if([browser_list count] == 0) {
+    if([self.browserList count] == 0) {
         [NSApp terminate:self];
     }
 }

@@ -9,15 +9,12 @@
 //       Maybe just make this a command line option?
 
 int main(int argc, char** argv) {
-    NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
+    @autoreleasepool {
+        [[NSApplication sharedApplication] setActivationPolicy:NSApplicationActivationPolicyRegular];
+        BBApplication* application = [[BBApplication alloc] init];
+        [NSApp setDelegate:application];    
+        [NSApp run];
+    }
 
-    [[NSApplication sharedApplication] setActivationPolicy:NSApplicationActivationPolicyRegular];
-
-    BBApplication* application = [[BBApplication alloc] init];
-    [NSApp setDelegate:application];    
-    [NSApp run];
-
-    [application release];
-    [pool drain];
     return 0;
 }

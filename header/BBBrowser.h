@@ -2,16 +2,15 @@
 #import <WebKit/WebKit.h>
 #import <BBAddressBar.h>
 
-@interface BBBrowser : NSObject <NSWindowDelegate, NSToolbarDelegate, NSToolbarItemValidation, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler> {
-    NSWindow*     window;
-    WKWebView*    webview;
-    NSURL*        address;
-    BBAddressBar* addressBar;
-}
+@interface BBBrowser : NSObject <NSWindowDelegate, NSToolbarDelegate, NSToolbarItemValidation, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler>
 
-// === Lifetime functions =========================================================================================================
--(BBBrowser*)init;
--(BBBrowser*)initWithConfiguration:(WKWebViewConfiguration*)configuration;
+@property NSWindow*     window;
+@property WKWebView*    webview;
+@property BBAddressBar* addressBar;
+
+// === Lifecycle functions ======================================================================================================
+-(instancetype)init;
+-(instancetype)initWithConfiguration:(WKWebViewConfiguration*)configuration NS_DESIGNATED_INITIALIZER;
 
 // === BB functions =============================================================================================================
 -(void)navigateToURL:(NSURL*)url;
@@ -20,16 +19,15 @@
 // -(void)navigateForward;
 // -(void)navigateReload;
 
-// === Window functions =========================================================================================================
--(NSWindow*)window;
+// === NSWindowDelegate =========================================================================================================
 -(BOOL)windowShouldClose:(id)sender;
 -(void)windowWillClose:(NSNotification*)notification;
 
-// === Menu functions =========================================================================================================
+// === Menu functions ===========================================================================================================
 -(void)menuAppHandler :(NSMenuItem*)sender;
 -(void)menuEditHandler:(NSMenuItem*)sender;
 
-// === Toolbar functions =========================================================================================================
+// === Toolbar functions ========================================================================================================
 -(NSToolbarItem*)toolbar:(NSToolbar*)toolbar itemForItemIdentifier:(NSString*)identifier willBeInsertedIntoToolbar:(BOOL)insert;
 -(NSArray<NSToolbarItemIdentifier>*)toolbarAllowedItemIdentifiers:(NSToolbar*)toolbar;
 -(NSArray<NSToolbarItemIdentifier>*)toolbarDefaultItemIdentifiers:(NSToolbar*)toolbar;
@@ -39,7 +37,6 @@
 -(void)addressEntered:(id)sender;
 
 // === WebKit functions =========================================================================================================
--(WKWebView*)webview;
 -(void)webView:(WKWebView*)webView didStartProvisionalNavigation:(WKNavigation*)navigation;
 -(void)webView:(WKWebView*)webView didFinishNavigation:(WKNavigation*)navigation;
 -(WKWebView*)webView:(WKWebView*)webView createWebViewWithConfiguration:(WKWebViewConfiguration*)configuration forNavigationAction:(WKNavigationAction*)navigationAction windowFeatures:(WKWindowFeatures*)windowFeatures;

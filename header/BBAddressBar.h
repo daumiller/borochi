@@ -1,7 +1,6 @@
 #import <Cocoa/Cocoa.h>
 
-@interface BBAddressBar : NSTextField {
-}
+@interface BBAddressBar : NSTextField
 
 -(BOOL)becomeFirstResponder;
 

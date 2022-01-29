@@ -18,104 +18,84 @@ void bbInformation(NSString* message) {
 
 @implementation BBBrowser
 
-// === Lifetime functions =========================================================================================================
--(BBBrowser*)init {
-    self = [super init];
-    window     = nil;
-    webview    = nil;
-    address    = nil;
-    addressBar = nil;
-
-    [self initWindow];
-    [self initMenu];
-    [self initToolbar];
-    [self initWebkit];
-
-    // auto-active the address bar,
-    // so we can CMD+T & immediately type a new address
-    [window makeFirstResponder:addressBar];
-
-    return self;
+// === Lifecycle functions ======================================================================================================
+-(instancetype)init {
+    return [self initWithConfiguration:nil];
 }
 
--(BBBrowser*)initWithConfiguration:(WKWebViewConfiguration*)configuration {
+-(instancetype)initWithConfiguration:(WKWebViewConfiguration*)configuration {
     self = [super init];
-    window     = nil;
-    webview    = nil;
-    address    = nil;
-    addressBar = nil;
+    if(self) {
+        [self initWindow];
+        [self initMenu];
+        [self initToolbar];
+        [self initWebkitWithConfiguration:configuration];
 
-    [self initWindow];
-    [self initMenu];
-    [self initToolbar];
-    [self initWebkitWithConfiguration:configuration];
-
+        // auto-active the address bar,
+        // so we can CMD+T & immediately type a new address
+        [self.window makeFirstResponder:self.addressBar];
+    }
     return self;
 }
 
 // === BB functions =============================================================================================================
 -(void)navigateToURL:(NSURL*)url {
-    NSURL* address_old = address;
-    address = [[NSURL alloc] initWithString:[url absoluteString]];
-    if(address_old) { [address_old release]; }
+    NSURLRequest* request = [[NSURLRequest alloc] initWithURL:url];
+    [self.webview loadRequest:request];
+    request = nil;
 
-    NSURLRequest* request = [[NSURLRequest alloc] initWithURL:address];
-    [webview loadRequest:request];
-    [request release];
-
-    if(addressBar != nil) {
-        [addressBar setStringValue:[url absoluteString]];
+    if(self.addressBar != nil) {
+        [self.addressBar setStringValue:[url absoluteString]];
     }
 }
 
 -(void)navigateToString:(NSString*)string {
-    // TODO : test if keyword search
+    @autoreleasepool {
+        // TODO : test if keyword search
 
-    // check for protocol
-    NSString* lowerCase = [string lowercaseString];
-    bool hasProtocol = NO;
-    if(!hasProtocol) { if([lowerCase hasPrefix:@"about:"  ]) { hasProtocol = YES; } }
-    if(!hasProtocol) { if([lowerCase hasPrefix:@"http://" ]) { hasProtocol = YES; } }
-    if(!hasProtocol) { if([lowerCase hasPrefix:@"https://"]) { hasProtocol = YES; } }
+        // check for protocol
+        NSString* lowerCase = [string lowercaseString];
+        bool hasProtocol = NO;
+        if(!hasProtocol) { if([lowerCase hasPrefix:@"about:"  ]) { hasProtocol = YES; } }
+        if(!hasProtocol) { if([lowerCase hasPrefix:@"http://" ]) { hasProtocol = YES; } }
+        if(!hasProtocol) { if([lowerCase hasPrefix:@"https://"]) { hasProtocol = YES; } }
+        lowerCase = nil;
 
-    NSURL* url = nil;
-    if(hasProtocol == NO) {
-        NSString* protocolled = [NSString stringWithFormat:@"https://%@", string];
-        url = [[NSURL alloc] initWithString:protocolled];
-        [protocolled release];
-    } else {
-        url = [[NSURL alloc] initWithString:string];
+        NSURL* url;
+        if(hasProtocol == NO) {
+            NSString* protocolled = [NSString stringWithFormat:@"https://%@", string];
+            url = [[NSURL alloc] initWithString:protocolled];
+            protocolled = nil;
+        } else {
+            url = [[NSURL alloc] initWithString:string];
+        }
+
+        [self navigateToURL:url];
+        url = nil;
     }
-
-    [self navigateToURL:url];
-    [url release];
 }
 
 // -(void)navigateBackward;
 // -(void)navigateForward;
 // -(void)navigateReload;
 
-// === Window functions =========================================================================================================
+// === NSWindowDelegate =========================================================================================================
 -(void)initWindow {
     NSString* appName = [[NSProcessInfo processInfo] processName];
 
-    window = [[NSWindow alloc] initWithContentRect: NSMakeRect(0, 0, 800, 480)
+    self.window = [[NSWindow alloc] initWithContentRect: NSMakeRect(0, 0, 800, 480)
                                               styleMask: NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
                                                 backing: NSBackingStoreBuffered
                                                   defer: NO];
 
-    [window setDelegate:self];
-    [window setReleasedWhenClosed:NO];
-    [[window windowController] setShouldCascadeWindows:NO]; 
-    [window setFrameAutosaveName:appName];
-    [window setTitle:appName];
-    [window makeKeyAndOrderFront:window];
-    [window setTitleVisibility:NSWindowTitleHidden];
-    [window setTabbingMode:NSWindowTabbingModePreferred];
-}
-
--(NSWindow*)window {
-    return window;
+    [self.window setReleasedWhenClosed:NO];
+    [self.window setDelegate:self];
+    [[self.window windowController] setShouldCascadeWindows:NO]; 
+    [self.window setFrameAutosaveName:appName];
+    [self.window setTitle:appName];
+    [self.window makeKeyAndOrderFront:self.window];
+    [self.window setTitleVisibility:NSWindowTitleHidden];
+    [self.window setTabbingMode:NSWindowTabbingModePreferred];
 }
 
 -(BOOL)windowShouldClose:(id)sender {
@@ -124,73 +104,67 @@ void bbInformation(NSString* message) {
 }
 
 -(void)windowWillClose:(NSNotification*)notification {
-    [self cleanupWebkit];
-    [self cleanupToolbar];
-    [self cleanupMenu];
-
-    if(address) { [address release]; }
-    address = nil;
+    // remove our Observer on self.webview.title
+    [self.webview removeObserver:self forKeyPath:@"title" context:NULL];
 
     BBApplication* app = [NSApp delegate];
     [app browserClosed:self];
+    app = nil;
 }
 
--(void)dealloc {
-    if(window) {
-        [window release];
-        window = nil;
-    }
-    [super dealloc];
-}
-
-// === Menu functions =========================================================================================================
-#define MENU_TAG_APP_NEW_TAB      0x0101
-#define MENU_TAG_EDIT_COPY        0x0201
-#define MENU_TAG_EDIT_CUT         0x0202
-#define MENU_TAG_EDIT_PASTE       0x0203
-#define MENU_TAG_EDIT_SELECT_ALL  0x0204
-#define MENU_TAG_EDIT_SELECT_NONE 0x0205
-#define MENU_TAG_EDIT_UNDO        0x0206
-#define MENU_TAG_EDIT_REDO        0x0207
+// === Menu functions ===========================================================================================================
+typedef NS_ENUM(NSInteger, BBMenuTag) {
+    BBMenuTagNewTab,
+    BBMenuTagEditCopy,
+    BBMenuTagEditCut,
+    BBMenuTagEditPaste,
+    BBMenuTagEditSelectAll,
+    BBMenuTagEditSelectNone,
+    BBMenuTagEditUndo,
+    BBMenuTagEditRedo
+};
 
 -(void)initMenu {
-    NSMenuItem* item;
-    
-    NSMenu* menu = [[NSMenu alloc] init];
-    [NSApp setMainMenu:menu];
-    [menu setAutoenablesItems:YES];
+    @autoreleasepool {
+        NSMenuItem* item;
+        
+        NSMenu* menu = [[NSMenu alloc] init];
+        [NSApp setMainMenu:menu];
+        [menu setAutoenablesItems:YES];
 
-    NSMenuItem* menu_appItem = [menu addItemWithTitle:@"" action:NULL keyEquivalent:@""];
-    NSMenu* menu_appGroup = [[NSMenu alloc] init];
-    [menu_appItem setSubmenu:menu_appGroup];
-    item = [menu_appGroup addItemWithTitle:@"New Tab" action:@selector(menuAppHandler:) keyEquivalent:@"t"]; [item setTag:MENU_TAG_APP_NEW_TAB];
-           [menu_appGroup addItem:[NSMenuItem separatorItem]];
-    item = [menu_appGroup addItemWithTitle:@"Quit"    action:@selector(terminate:)      keyEquivalent:@"q"];
-    [menu_appGroup release];
+        // App Menu
+        NSMenuItem* menu_appItem = [menu addItemWithTitle:@"" action:NULL keyEquivalent:@""];
+        NSMenu* menu_appGroup = [[NSMenu alloc] init];
+        [menu_appItem setSubmenu:menu_appGroup];
+        item = [menu_appGroup addItemWithTitle:@"New Tab" action:@selector(menuAppHandler:) keyEquivalent:@"t"]; [item setTag:BBMenuTagNewTab];
+               [menu_appGroup addItem:[NSMenuItem separatorItem]];
+        item = [menu_appGroup addItemWithTitle:@"Quit"    action:@selector(terminate:)      keyEquivalent:@"q"];
+        menu_appGroup = nil;
+        menu_appItem = nil;
 
-    NSMenuItem* menu_editItem = [menu addItemWithTitle:@"" action:NULL keyEquivalent:@""];
-    NSMenu* menu_editGroup = [[NSMenu alloc] initWithTitle:@"Edit"];
-    [menu_editItem setSubmenu:menu_editGroup];
-    item = [menu_editGroup addItemWithTitle:@"Copy"        action:@selector(menuEditHandler:) keyEquivalent:@"c"]; [item setTag:MENU_TAG_EDIT_COPY       ];
-    item = [menu_editGroup addItemWithTitle:@"Cut"         action:@selector(menuEditHandler:) keyEquivalent:@"x"]; [item setTag:MENU_TAG_EDIT_CUT        ];
-    item = [menu_editGroup addItemWithTitle:@"Paste"       action:@selector(menuEditHandler:) keyEquivalent:@"v"]; [item setTag:MENU_TAG_EDIT_PASTE      ];
-           [menu_editGroup addItem:[NSMenuItem separatorItem]];
-    item = [menu_editGroup addItemWithTitle:@"Select All"  action:@selector(menuEditHandler:) keyEquivalent:@"a"]; [item setTag:MENU_TAG_EDIT_SELECT_ALL ];
-    item = [menu_editGroup addItemWithTitle:@"Select None" action:@selector(menuEditHandler:) keyEquivalent:@"d"]; [item setTag:MENU_TAG_EDIT_SELECT_NONE];
-           [menu_editGroup addItem:[NSMenuItem separatorItem]];
-    item = [menu_editGroup addItemWithTitle:@"Undo"        action:@selector(menuEditHandler:) keyEquivalent:@"z"]; [item setTag:MENU_TAG_EDIT_UNDO       ];
-    item = [menu_editGroup addItemWithTitle:@"Redo"        action:@selector(menuEditHandler:) keyEquivalent:@"z"]; [item setTag:MENU_TAG_EDIT_REDO       ]; [item setKeyEquivalentModifierMask:(NSEventModifierFlagShift|NSEventModifierFlagCommand)];
-    [menu_editGroup release];
+        // Edit Menu
+        NSMenuItem* menu_editItem = [menu addItemWithTitle:@"" action:NULL keyEquivalent:@""];
+        NSMenu* menu_editGroup = [[NSMenu alloc] initWithTitle:@"Edit"];
+        [menu_editItem setSubmenu:menu_editGroup];
+        item = [menu_editGroup addItemWithTitle:@"Copy"        action:@selector(menuEditHandler:) keyEquivalent:@"c"]; [item setTag:BBMenuTagEditCopy      ];
+        item = [menu_editGroup addItemWithTitle:@"Cut"         action:@selector(menuEditHandler:) keyEquivalent:@"x"]; [item setTag:BBMenuTagEditCut       ];
+        item = [menu_editGroup addItemWithTitle:@"Paste"       action:@selector(menuEditHandler:) keyEquivalent:@"v"]; [item setTag:BBMenuTagEditPaste     ];
+               [menu_editGroup addItem:[NSMenuItem separatorItem]];
+        item = [menu_editGroup addItemWithTitle:@"Select All"  action:@selector(menuEditHandler:) keyEquivalent:@"a"]; [item setTag:BBMenuTagEditSelectAll ];
+        item = [menu_editGroup addItemWithTitle:@"Select None" action:@selector(menuEditHandler:) keyEquivalent:@"d"]; [item setTag:BBMenuTagEditSelectNone];
+               [menu_editGroup addItem:[NSMenuItem separatorItem]];
+        item = [menu_editGroup addItemWithTitle:@"Undo"        action:@selector(menuEditHandler:) keyEquivalent:@"z"]; [item setTag:BBMenuTagEditUndo      ];
+        item = [menu_editGroup addItemWithTitle:@"Redo"        action:@selector(menuEditHandler:) keyEquivalent:@"z"]; [item setTag:BBMenuTagEditRedo      ]; [item setKeyEquivalentModifierMask:(NSEventModifierFlagShift|NSEventModifierFlagCommand)];
+        menu_editGroup = nil;
+        menu_editItem = nil;
 
-    [menu release];
-}
-
--(void)cleanupMenu {
+        menu = nil;
+    }
 }
 
 -(void)menuAppHandler:(NSMenuItem*)sender {
     switch([sender tag]) {
-        case MENU_TAG_APP_NEW_TAB: {
+        case BBMenuTagNewTab: {
             BBApplication* app = [NSApp delegate];
             [app newTabWithURL:nil];
         }
@@ -200,25 +174,27 @@ void bbInformation(NSString* message) {
 
 -(void)menuEditHandler:(NSMenuItem*)sender {
     switch([sender tag]) {
-        case MENU_TAG_EDIT_COPY:        [NSApp sendAction:@selector(copy:)       to:nil from:self]; break;
-        case MENU_TAG_EDIT_CUT:         [NSApp sendAction:@selector(cut:)        to:nil from:self]; break;
-        case MENU_TAG_EDIT_PASTE:       [NSApp sendAction:@selector(paste:)      to:nil from:self]; break;
-        case MENU_TAG_EDIT_SELECT_ALL:  [NSApp sendAction:@selector(selectAll:)  to:nil from:self]; break;
-        case MENU_TAG_EDIT_SELECT_NONE: [NSApp sendAction:@selector(selectNone:) to:nil from:self]; break;
-        case MENU_TAG_EDIT_UNDO:        [NSApp sendAction:@selector(undo:)       to:nil from:self]; break;
-        case MENU_TAG_EDIT_REDO:        [NSApp sendAction:@selector(redo:)       to:nil from:self]; break;
+        case BBMenuTagEditCopy:       [NSApp sendAction:@selector(copy:)       to:nil from:self]; break;
+        case BBMenuTagEditCut:        [NSApp sendAction:@selector(cut:)        to:nil from:self]; break;
+        case BBMenuTagEditPaste:      [NSApp sendAction:@selector(paste:)      to:nil from:self]; break;
+        case BBMenuTagEditSelectAll:  [NSApp sendAction:@selector(selectAll:)  to:nil from:self]; break;
+        case BBMenuTagEditSelectNone: [NSApp sendAction:@selector(selectNone:) to:nil from:self]; break;
+        case BBMenuTagEditUndo:       [NSApp sendAction:@selector(undo:)       to:nil from:self]; break;
+        case BBMenuTagEditRedo:       [NSApp sendAction:@selector(redo:)       to:nil from:self]; break;
     }
 }
 
-// === Toolbar functions =========================================================================================================
+// === Toolbar functions ========================================================================================================
 #define TOOLBAR_IDENTIFIER_MAIN          @"BB.Toolbar.Main"
 #define TOOLBAR_IDENTIFIER_MAIN_ADDRESS  @"BB.Toolbar.Main.Address"
 #define TOOLBAR_IDENTIFIER_MAIN_BACKWARD @"BB.Toolbar.Main.Backward"
 #define TOOLBAR_IDENTIFIER_MAIN_FORWARD  @"BB.Toolbar.Main.Forward"
 
-#define TOOLBAR_TAG_MAIN_ADDRESS  0x0000
-#define TOOLBAR_TAG_MAIN_BACKWARD 0x0001
-#define TOOLBAR_TAG_MAIN_FORWARD  0x0002
+typedef NS_ENUM(NSInteger, BBToolbarTag) {
+    BBToolbarTagMainAddress,
+    BBToolbarTagMainBackward,
+    BBToolbarTagMainForward
+};
 
 -(void)initToolbar {
     NSToolbar* toolbar = [[NSToolbar alloc] initWithIdentifier:TOOLBAR_IDENTIFIER_MAIN];
@@ -226,11 +202,8 @@ void bbInformation(NSString* message) {
     [toolbar setAllowsUserCustomization:YES];
     [toolbar setAutosavesConfiguration:YES];
     [toolbar setDisplayMode:NSToolbarDisplayModeDefault]; // [ NSToolbarDisplayModeDefault, NSToolbarDisplayModeIconAndLabel, NSToolbarDisplayModeIconOnly, NSToolbarDisplayModeLabelOnl ]
-    [window setToolbar:toolbar];
-    [toolbar release];
-}
-
--(void)cleanupToolbar {
+    [self.window setToolbar:toolbar];
+    toolbar = nil;
 }
 
 -(NSToolbarItem*)toolbar:(NSToolbar*)toolbar itemForItemIdentifier:(NSString*)identifier willBeInsertedIntoToolbar:(BOOL)insert {
@@ -238,44 +211,44 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
         NSToolbarItem* item = [[NSToolbarItem alloc] initWithItemIdentifier:identifier];
         [item setLabel:@"Backward"];
         [item setToolTip:@"Navigate to Previous Page"];
-        [item setTag:TOOLBAR_TAG_MAIN_BACKWARD];
+        [item setTag:BBToolbarTagMainBackward];
         [item setBordered:YES];
         [item setTarget:self];
         [item setAction:@selector(toolbarItemClicked:)];
         [item setImage:[NSImage imageNamed:NSImageNameTouchBarGoBackTemplate]];
-        return [item autorelease];
+        return item;
     }
 
     if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_FORWARD]) {
         NSToolbarItem* item = [[NSToolbarItem alloc] initWithItemIdentifier:identifier];
         [item setLabel:@"Forward"];
         [item setToolTip:@"Navigate to Next Page"];
-        [item setTag:TOOLBAR_TAG_MAIN_FORWARD];
+        [item setTag:BBToolbarTagMainForward];
         [item setBordered:YES];
         [item setTarget:self];
         [item setAction:@selector(toolbarItemClicked:)];
         // https://developer.apple.com/design/human-interface-guidelines/macos/touch-bar/touch-bar-glyphs-and-images/
         [item setImage:[NSImage imageNamed:NSImageNameTouchBarGoForwardTemplate]];
-        return [item autorelease];
+        return item;
     }
 
     if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_ADDRESS]) {
-        addressBar = [BBAddressBar textFieldWithString:@""];
-        [addressBar setAlignment:NSTextAlignmentCenter];
-        [[addressBar cell] setSendsActionOnEndEditing:NO]; // ensure we ONLY fire actions for ENTER key presses
-        [addressBar setTarget:self];
-        [addressBar setAction:@selector(addressEntered:)];
+        self.addressBar = [BBAddressBar textFieldWithString:@""];
+        [self.addressBar  setAlignment:NSTextAlignmentCenter];
+        [[self.addressBar cell] setSendsActionOnEndEditing:NO]; // ensure we ONLY fire actions for ENTER key presses
+        [self.addressBar  setTarget:self];
+        [self.addressBar  setAction:@selector(addressEntered:)];
 
         NSToolbarItem* item = [[NSToolbarItem alloc] initWithItemIdentifier:identifier];
         [item setLabel:@"Address"];
         [item setToolTip:@"Enter a web address or search term."];
-        [item setTag:TOOLBAR_TAG_MAIN_ADDRESS];
+        [item setTag:BBToolbarTagMainAddress];
         [item setBordered:YES];
+        // TODO : use "constraints" instead???
         NSSize minSize=[item minSize]; minSize.width= 128; [item setMinSize:minSize];
         NSSize maxSize=[item maxSize]; maxSize.width=4096; [item setMaxSize:maxSize];
-        [item setView:addressBar];
-        [addressBar release];
-        return [item autorelease];
+        [item setView:self.addressBar];
+        return item;
     }
 
     return nil;
@@ -294,11 +267,11 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
 }
 
 -(BOOL)validateToolbarItem:(NSToolbarItem*)item {
-    if(webview == nil) { return NO; }
+    if(self.webview == nil) { return NO; }
 
     switch([item tag]) {
-        case TOOLBAR_TAG_MAIN_BACKWARD: return [webview canGoBack   ]; break;
-        case TOOLBAR_TAG_MAIN_FORWARD : return [webview canGoForward]; break;
+        case BBToolbarTagMainBackward: return [self.webview canGoBack   ]; break;
+        case BBToolbarTagMainForward : return [self.webview canGoForward]; break;
     }
 
     return NO;
@@ -306,23 +279,21 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
 
 -(void)toolbarItemClicked:(NSToolbarItem*)item {
     switch([item tag]) {
-        case TOOLBAR_TAG_MAIN_BACKWARD: [webview goBack   ]; break;
-        case TOOLBAR_TAG_MAIN_FORWARD : [webview goForward]; break;
+        case BBToolbarTagMainBackward: [self.webview goBack   ]; break;
+        case BBToolbarTagMainForward : [self.webview goForward]; break;
     }
 }
 
 -(void)addressEntered:(id)sender {
-    [self navigateToString:[addressBar stringValue]];
+    [self navigateToString:[self.addressBar stringValue]];
 }
 
 // === WebKit functions =========================================================================================================
--(void)initWebkit {
-    WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
-    [self initWebkitWithConfiguration:config];
-    [config release];
-}
-
 -(void)initWebkitWithConfiguration:(WKWebViewConfiguration*)configuration {
+    if(configuration == nil) {
+        configuration = [[WKWebViewConfiguration alloc] init];
+    }
+
     [[configuration preferences] setValue:@YES forKey:@"developerExtrasEnabled"];
     [[configuration preferences] setValue:@YES forKey:@"fullScreenEnabled"];
     [[configuration preferences] setValue:@YES forKey:@"javaScriptCanAccessClipboard"];
@@ -330,49 +301,36 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
     // WKUserContentController* content_controller = [config userContentController];
     // [content_controller addScriptMessageHandler:self name:@"nativeAlert"];
 
-    webview = [[WKWebView alloc] initWithFrame:CGRectMake(0,0,0,0) configuration:configuration];
-    [webview setNavigationDelegate:self];
-    [webview setUIDelegate:self];
+    self.webview = [[WKWebView alloc] initWithFrame:CGRectMake(0,0,0,0) configuration:configuration];
+    [self.webview setNavigationDelegate:self];
+    [self.webview setUIDelegate:self];
 
-    [window setContentView:webview];
-    [window makeFirstResponder:webview];
+    [self.window setContentView:self.webview];
 
-    // observe changes to [webview title], and set our window/tab title on any change
-    [webview addObserver:self forKeyPath:@"title" options:NSKeyValueObservingOptionNew context:NULL];
+    // observe changes to [self.webview title], and set our window/tab title on any change
+    [self.webview addObserver:self forKeyPath:@"title" options:NSKeyValueObservingOptionNew context:NULL];
 }
 
--(WKWebView*)webview {
-    return webview;
-}
-
--(void)cleanupWebkit {
-    [webview release];
-    webview = nil;
-}
-
--(void)webView:(WKWebView*)sourceWebview didStartProvisionalNavigation:(WKNavigation*)navigation {
-    NSURL* address_old = address;
-    address = [[NSURL alloc] initWithString:[[sourceWebview URL] absoluteString]];
-    if(address_old) { [address_old release]; }
-
-    if(addressBar != nil) {
-        [addressBar setStringValue:[address absoluteString]];
+-(void)webView:(WKWebView*)webview didStartProvisionalNavigation:(WKNavigation*)navigation {
+    if(self.addressBar != nil) {
+        [self.addressBar setStringValue:[[self.webview URL] absoluteString]];
     }
 }
 
--(void)webView:(WKWebView*)sourceWebview didFinishNavigation:(WKNavigation*)navigation {
-    // was setting title here, but just KVO-observing it now
+-(void)webView:(WKWebView*)webview didFinishNavigation:(WKNavigation*)navigation {
+    // we were setting title here, but just KVO-observing it now
 }
 
--(WKWebView*)webView:(WKWebView*)sourceWebview createWebViewWithConfiguration:(WKWebViewConfiguration*)configuration forNavigationAction:(WKNavigationAction*)navigationAction windowFeatures:(WKWindowFeatures*)windowFeatures {
+-(WKWebView*)webView:(WKWebView*)webview createWebViewWithConfiguration:(WKWebViewConfiguration*)configuration forNavigationAction:(WKNavigationAction*)navigationAction windowFeatures:(WKWindowFeatures*)windowFeatures {
     if([navigationAction targetFrame] && [[navigationAction targetFrame] isMainFrame]) {
         return nil;
     }
 
-    NSURL* url = [[navigationAction request] URL];
-    BBApplication* app = (BBApplication*)[NSApp delegate];
-    BBBrowser* new_browser = [app newTabWithURL:url andConfiguration:configuration];
-    return [new_browser webview];
+    BBApplication* application = [NSApp delegate];
+    BBBrowser* browser = [application newTabWithURL:[[navigationAction request] URL] andConfiguration:configuration];
+    application = nil;
+
+    return browser.webview;
 }
 
 -(void)userContentController:(WKUserContentController*)userContentController didReceiveScriptMessage:(WKScriptMessage*)message {
@@ -380,7 +338,7 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
 
 -(void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey, id>*)change context:(void*)context {
     if([keyPath isEqual:@"title"]) {
-        [window setTitle:[webview title]];
+        [self.window setTitle:self.webview.title];
     }
 }
 
