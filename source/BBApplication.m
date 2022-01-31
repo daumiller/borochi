@@ -44,7 +44,12 @@
     return [self newTabWithURL:url andConfiguration:nil];
 }
 
+// TODO : we need options to create tabs without activating them (ex: preference for opening new tab without deactivating current one)
+
 -(BBBrowser*)newTabWithURL:(NSURL*)url andConfiguration:(WKWebViewConfiguration*)configuration {
+    // capture currently active window, before we create a new one
+    NSWindow* activeWindow = [NSApp keyWindow];
+
     BBBrowser* bbb = [[BBBrowser alloc] initWithConfiguration:configuration];
 
     if(url != nil) {
@@ -53,9 +58,19 @@
         [bbb navigateToString:@"about:blank"];
     }
 
+    // add to existing window tab-group, if we have any
     if([self.browserList count] > 0) {
-        [[self.browserList lastObject].window addTabbedWindow:bbb.window ordered:NSWindowAbove];
+        // if we have multiple windows (each with multiple tabs), we want to make sure this routes to the correct (active) group
+        if(activeWindow != nil) {
+            id activeWindowDelegate = activeWindow.delegate;
+            if(activeWindowDelegate != nil) {
+                if([activeWindowDelegate isKindOfClass:[BBBrowser class]]) {
+                    [activeWindow addTabbedWindow:bbb.window ordered:NSWindowAbove];
+                }
+            }
+        }
     }
+
     [self.browserList addObject:bbb];
 
     return bbb;

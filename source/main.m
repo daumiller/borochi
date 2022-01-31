@@ -1,5 +1,6 @@
 #import <Cocoa/Cocoa.h>
 #import <BBApplication.h>
+#include <stdio.h>
 
 // TODO
 // [ ] Arguments parsing?

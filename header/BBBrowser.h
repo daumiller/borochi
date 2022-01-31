@@ -1,12 +1,17 @@
 #import <Cocoa/Cocoa.h>
-#import <WebKit/WebKit.h>
 #import <BBAddressBar.h>
+#import <BBWebView.h>
+#import <BBAddressBar.h>
+#import <BBAutocompleteMock.h>
 
-@interface BBBrowser : NSObject <NSWindowDelegate, NSToolbarDelegate, NSToolbarItemValidation, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler>
+@interface BBBrowser : NSObject <NSWindowDelegate, NSToolbarDelegate, NSToolbarItemValidation, BBAddressBarCommittedDelegate> {
+    BOOL _browserClosing;
+}
 
-@property NSWindow*     window;
-@property WKWebView*    webview;
-@property BBAddressBar* addressBar;
+@property NSWindow*            window;
+@property BBAddressBar*        addressBar;
+@property BBWebView*           webview;
+@property BBAutocompleteMock*  addressCompletions;
 
 // === Lifecycle functions ======================================================================================================
 -(instancetype)init;
@@ -15,9 +20,6 @@
 // === BB functions =============================================================================================================
 -(void)navigateToURL:(NSURL*)url;
 -(void)navigateToString:(NSString*)string;
-// -(void)navigateBackward;
-// -(void)navigateForward;
-// -(void)navigateReload;
 
 // === NSWindowDelegate =========================================================================================================
 -(BOOL)windowShouldClose:(id)sender;
@@ -36,13 +38,5 @@
 -(NSArray<NSToolbarItemIdentifier>*)toolbarSelectableItemIdentifiers:(NSToolbar*)toolbar;
 -(BOOL)validateToolbarItem:(NSToolbarItem*)item;
 -(void)toolbarItemClicked:(NSToolbarItem*)item;
--(void)addressEntered:(id)sender;
-
-// === WebKit functions =========================================================================================================
--(void)webView:(WKWebView*)webView didStartProvisionalNavigation:(WKNavigation*)navigation;
--(void)webView:(WKWebView*)webView didFinishNavigation:(WKNavigation*)navigation;
--(WKWebView*)webView:(WKWebView*)webView createWebViewWithConfiguration:(WKWebViewConfiguration*)configuration forNavigationAction:(WKNavigationAction*)navigationAction windowFeatures:(WKWindowFeatures*)windowFeatures;
--(void)userContentController:(WKUserContentController*)userContentController didReceiveScriptMessage:(WKScriptMessage*)message;
--(void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey, id>*)change context:(void*)context;
 
 @end

@@ -1,13 +1,38 @@
 #import <Cocoa/Cocoa.h>
 
-@interface BBAddressBar : NSTextField {
-    BOOL _loading;
-    double _progress;
+@protocol BBAddressCompletionSource
+-(NSArray<NSString*>*)completionsForPartial:(NSString*)string;
+-(void)removeCompletion:(NSString*)completion;
+@end
+
+@protocol BBAddressBarCommittedDelegate
+-(void)addressBarCommitted:(NSString*)address;
+@end
+
+@interface BBAddressBar : NSTextField <NSTextFieldDelegate, NSTableViewDelegate, NSTableViewDataSource> {
+    BOOL   _progressBarActive;
+    double _progressBarValue; // 0.0 - 1.0
+
+    id                _keyDownMonitor;
+    NSPopover*        _autocompletePopover;
+    NSView*           _autocompletePopoverHideArrow;
+    NSViewController* _autocompleteViewController;
+    NSTableView*      _autocompleteTable;
+
+    NSArray<NSString*>* _autocompletions;
 }
 
--(BOOL)becomeFirstResponder;
+@property (weak) id <BBAddressCompletionSource> autocompleteSource;
+@property BOOL                                  autocompleteEnabled;
+@property NSInteger                             autocompleteMaxResults;
 
--(void)setLoading:(BOOL)loading;
--(void)setProgress:(double)progress;
+@property (weak) id <BBAddressBarCommittedDelegate> addressCommittedDelegate;
+
+// === Lifecycle functions ======================================================================================================
++(instancetype)textFieldWithString:(NSString*)string;
+
+// === BB functions =============================================================================================================
+-(void)setProgressBarActive:(BOOL)active;
+-(void)setProgressBarValue :(double)value;
 
 @end

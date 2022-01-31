@@ -3,18 +3,7 @@
 #import <BBApplication.h>
 #import <BBBrowser.h>
 #import <BBAddressBar.h>
-
-/*
-void bbInformation(NSString* message) {
-  NSAlert *alert = [[NSAlert alloc] init];
-  [alert addButtonWithTitle : @"Okay"];
-  [alert setMessageText     : message];
-  [alert setAlertStyle      : NSAlertStyleInformational];
-
-  [alert runModal];
-  [alert release];
-}
-*/
+#import <BBAutocompleteMock.h>
 
 @implementation BBBrowser
 
@@ -26,30 +15,31 @@ void bbInformation(NSString* message) {
 -(instancetype)initWithConfiguration:(WKWebViewConfiguration*)configuration {
     self = [super init];
     if(self) {
+        _browserClosing = NO;
+
         [self initWindow];
         [self initMenu];
         [self initToolbar];
+        self.webview = [[BBWebView alloc] initWithBrowser:self andConfiguration:configuration];
+
         // TODO : bookmarks
         //        - either a NSTitlebarAccessoryViewController,
         //        - or, a sidebar (https://developer.apple.com/design/human-interface-guidelines/macos/windows-and-views/sidebars/)
-        [self initWebkitWithConfiguration:configuration];
 
-        // auto-active the address bar,
+        // auto-activate the address bar,
         // so we can CMD+T & immediately type a new address
         [self.window makeFirstResponder:self.addressBar];
+
+        self.addressBar.nextKeyView = self.webview.webkit;
+        self.webview.webkit.nextKeyView = self.addressBar;
     }
     return self;
 }
 
 // === BB functions =============================================================================================================
 -(void)navigateToURL:(NSURL*)url {
-    NSURLRequest* request = [[NSURLRequest alloc] initWithURL:url];
-    [self.webview loadRequest:request];
-    request = nil;
-
-    if(self.addressBar != nil) {
-        [self.addressBar setStringValue:[url absoluteString]];
-    }
+    [self.window makeFirstResponder:self.webview.webkit];
+    [self.webview navigateToURL:url];
 }
 
 -(void)navigateToString:(NSString*)string {
@@ -78,10 +68,6 @@ void bbInformation(NSString* message) {
     }
 }
 
-// -(void)navigateBackward;
-// -(void)navigateForward;
-// -(void)navigateReload;
-
 // === NSWindowDelegate =========================================================================================================
 -(void)initWindow {
     NSString* appName = [[NSProcessInfo processInfo] processName];
@@ -99,6 +85,7 @@ void bbInformation(NSString* message) {
     [self.window makeKeyAndOrderFront:self.window];
     [self.window setTitleVisibility:NSWindowTitleHidden];
     [self.window setTabbingMode:NSWindowTabbingModePreferred];
+    [self.window setTabbingIdentifier:@"BorochiBrowserWindow"];
 }
 
 -(BOOL)windowShouldClose:(id)sender {
@@ -107,8 +94,15 @@ void bbInformation(NSString* message) {
 }
 
 -(void)windowWillClose:(NSNotification*)notification {
-    // let webview remove its observers
-    [self cleanupWebKit];
+    // okay... we get called when BBBrowser window is closing, but,
+    // if we're the last window, BBApplication will terminate, and, i guess,
+    // since the window isn't fully closed yet (we're still inside of our call to browserClosed:),
+    // it starts another close attempt, leading us back here, and throwing exceptions (mostly in [webview cleanup])
+    if(_browserClosing == YES) { return; }
+    _browserClosing = YES;
+    
+    // let webview remove its KVOs
+    [self.webview cleanup];
 
     BBApplication* app = [NSApp delegate];
     [app browserClosed:self];
@@ -207,16 +201,16 @@ typedef NS_ENUM(NSInteger, BBMenuTag) {
 
     switch([sender tag]) {
         case BBMenuTagNavigateHome:     /* TODO */                       break;
-        case BBMenuTagNavigateBackward: [self.webview goBack          ]; break;
-        case BBMenuTagNavigateForward:  [self.webview goForward       ]; break;
-        case BBMenuTagNavigateReload:   [self.webview reloadFromOrigin]; break;
+        case BBMenuTagNavigateBackward: [self.webview navigateBackward]; break;
+        case BBMenuTagNavigateForward:  [self.webview navigateForward ]; break;
+        case BBMenuTagNavigateReload:   [self.webview navigateReload  ]; break;
     }
 }
 
 -(BOOL)validateMenuItem:(NSMenuItem*)item {
     switch([item tag]) {
-        case BBMenuTagNavigateBackward: return (self.webview == nil) ? NO : [self.webview canGoBack   ];
-        case BBMenuTagNavigateForward : return (self.webview == nil) ? NO : [self.webview canGoForward];
+        case BBMenuTagNavigateBackward: return (self.webview == nil) ? NO : [self.webview canNavigateBackward];
+        case BBMenuTagNavigateForward : return (self.webview == nil) ? NO : [self.webview canNavigateForward ];
     }
 
     return YES;
@@ -313,11 +307,13 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
     }
 
     if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_ADDRESS]) {
+        self.addressCompletions = [[BBAutocompleteMock alloc] init];
+
         self.addressBar = [BBAddressBar textFieldWithString:@""];
-        [self.addressBar  setAlignment:NSTextAlignmentCenter];
-        [[self.addressBar cell] setSendsActionOnEndEditing:NO]; // ensure we ONLY fire actions for ENTER key presses
-        [self.addressBar  setTarget:self];
-        [self.addressBar  setAction:@selector(addressEntered:)];
+        self.addressBar.autocompleteSource       = self.addressCompletions;
+        self.addressBar.autocompleteEnabled      = YES;
+        self.addressBar.autocompleteMaxResults   = 10;
+        self.addressBar.addressCommittedDelegate = self;
 
         NSToolbarItem* item = [[NSToolbarItem alloc] initWithItemIdentifier:identifier];
         [item setLabel:@"Address"];
@@ -362,8 +358,8 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
     if(self.webview == nil) { return NO; }
 
     switch([item tag]) {
-        case BBToolbarTagMainBackward: return [self.webview canGoBack   ];
-        case BBToolbarTagMainForward : return [self.webview canGoForward];
+        case BBToolbarTagMainBackward: return [self.webview canNavigateBackward];
+        case BBToolbarTagMainForward : return [self.webview canNavigateForward ];
     }
 
     return YES;
@@ -371,91 +367,16 @@ if([identifier isEqual:TOOLBAR_IDENTIFIER_MAIN_BACKWARD]) {
 
 -(void)toolbarItemClicked:(NSToolbarItem*)item {
     switch([item tag]) {
-        case BBToolbarTagMainBackward    : [self.webview goBack          ]; break;
-        case BBToolbarTagMainForward     : [self.webview goForward       ]; break;
-        case BBToolbarTagMainReload      : [self.webview reloadFromOrigin]; break;
+        case BBToolbarTagMainBackward    : [self.webview navigateBackward]; break;
+        case BBToolbarTagMainForward     : [self.webview navigateForward ]; break;
+        case BBToolbarTagMainReload      : [self.webview navigateReload  ]; break;
         case BBToolbarTagMainHome        : /* TODO */ break;
         case BBToolbarTagMainPreferences : /* TODO */ break;
     }
 }
 
--(void)addressEntered:(id)sender {
-    [self navigateToString:[self.addressBar stringValue]];
-}
-
-// === WebKit functions =========================================================================================================
--(void)initWebkitWithConfiguration:(WKWebViewConfiguration*)configuration {
-    if(configuration == nil) {
-        configuration = [[WKWebViewConfiguration alloc] init];
-    }
-
-    [[configuration preferences] setValue:@YES forKey:@"developerExtrasEnabled"];
-    [[configuration preferences] setValue:@YES forKey:@"fullScreenEnabled"];
-    [[configuration preferences] setValue:@YES forKey:@"javaScriptCanAccessClipboard"];
-    [[configuration preferences] setValue:@YES forKey:@"DOMPasteAllowed"];
-    // WKUserContentController* content_controller = [config userContentController];
-    // [content_controller addScriptMessageHandler:self name:@"nativeAlert"];
-
-    self.webview = [[WKWebView alloc] initWithFrame:CGRectMake(0,0,0,0) configuration:configuration];
-    [self.webview setNavigationDelegate:self];
-    [self.webview setUIDelegate:self];
-
-    [self.window setContentView:self.webview];
-
-    // observe changes to [self.webview title], and set our window/tab title on any change
-    [self.webview addObserver:self forKeyPath:@"title"             options:NSKeyValueObservingOptionNew context:NULL];
-    [self.webview addObserver:self forKeyPath:@"loading"           options:NSKeyValueObservingOptionNew context:NULL];
-    [self.webview addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:NULL];
-}
-
--(void)cleanupWebKit {
-    // remove our Observers
-    [self.webview removeObserver:self forKeyPath:@"title"             context:NULL];
-    [self.webview removeObserver:self forKeyPath:@"loading"           context:NULL];
-    [self.webview removeObserver:self forKeyPath:@"estimatedProgress" context:NULL];
-
-}
-
--(void)webView:(WKWebView*)webview didStartProvisionalNavigation:(WKNavigation*)navigation {
-    if(self.addressBar != nil) {
-        [self.addressBar setStringValue:[[self.webview URL] absoluteString]];
-    }
-}
-
--(void)webView:(WKWebView*)webview didFinishNavigation:(WKNavigation*)navigation {
-    // we were setting title here, but just KVO-observing it now
-}
-
--(WKWebView*)webView:(WKWebView*)webview createWebViewWithConfiguration:(WKWebViewConfiguration*)configuration forNavigationAction:(WKNavigationAction*)navigationAction windowFeatures:(WKWindowFeatures*)windowFeatures {
-    if([navigationAction targetFrame] && [[navigationAction targetFrame] isMainFrame]) {
-        return nil;
-    }
-
-    BBApplication* application = [NSApp delegate];
-    BBBrowser* browser = [application newTabWithURL:[[navigationAction request] URL] andConfiguration:configuration];
-    application = nil;
-
-    return browser.webview;
-}
-
--(void)userContentController:(WKUserContentController*)userContentController didReceiveScriptMessage:(WKScriptMessage*)message {
-}
-
--(void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey, id>*)change context:(void*)context {
-    if([keyPath isEqual:@"title"]) {
-        [self.window setTitle:self.webview.title];
-        return;
-    }
-
-    if([keyPath isEqual:@"loading"]) {
-        [self.addressBar setLoading:[self.webview isLoading]];
-        return;
-    }
-
-    if([keyPath isEqual:@"estimatedProgress"]) {
-        [self.addressBar setProgress:[self.webview estimatedProgress]];
-        return;
-    }
+-(void)addressBarCommitted:(NSString*)address {
+    [self navigateToString:address];
 }
 
 @end
