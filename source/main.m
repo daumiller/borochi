@@ -1,6 +1,6 @@
 #import <Cocoa/Cocoa.h>
 #import <BBApplication.h>
-#include <stdio.h>
+#import <BBPreferences.h>
 
 // TODO
 // [ ] Arguments parsing?
@@ -12,8 +12,8 @@
 int main(int argc, char** argv) {
     @autoreleasepool {
         [[NSApplication sharedApplication] setActivationPolicy:NSApplicationActivationPolicyRegular];
-        BBApplication* application = [[BBApplication alloc] init];
-        [NSApp setDelegate:application];    
+        [NSApp setDelegate:[BBApplication sharedApplication]];
+        [[BBPreferences sharedPreferences] loadPreferences];
         [NSApp run];
     }
 

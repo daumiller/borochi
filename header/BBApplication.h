@@ -12,7 +12,7 @@
 @property NSMutableArray<BBBrowser*>* browserList;
 
 // === Lifecycle functions =====================================================================================================
--(instancetype)init NS_DESIGNATED_INITIALIZER;
++(instancetype)sharedApplication;
 
 // === BB functions =============================================================================================================
 -(BBBrowser*)newTabWithURL:(NSURL*)url;

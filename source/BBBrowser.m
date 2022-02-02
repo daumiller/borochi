@@ -4,6 +4,7 @@
 #import <BBBrowser.h>
 #import <BBAddressBar.h>
 #import <BBAutocompleteMock.h>
+#import <BBPreferences.h>
 
 @implementation BBBrowser
 
@@ -44,14 +45,29 @@
 
 -(void)navigateToString:(NSString*)string {
     @autoreleasepool {
-        // TODO : test if keyword search
+        // process keyword searches
+        if([string rangeOfString:@"[^\\s]+\\s[^\\s+]" options:NSRegularExpressionSearch].location != NSNotFound) {
+            NSDictionary<NSString*,NSString*>* keywords = [[BBPreferences sharedPreferences] getPreference:@"addressBarSearchTemplates"];
+            if((keywords != nil) && (keywords.count > 0)) {
+                NSRange keywordRange = [string rangeOfString:@" "];
+                keywordRange.length   = keywordRange.location + keywordRange.length;
+                keywordRange.location = 0;
+                NSString* keywordWithSpace = [string substringWithRange:keywordRange];
+                NSString* keywordTemplate = [keywords objectForKey:keywordWithSpace];
+                if(keywordTemplate != nil) {
+                    NSString* query = [string substringFromIndex:(keywordRange.location + keywordRange.length)];
+                    query = [query stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+                    string = [keywordTemplate stringByReplacingOccurrencesOfString:@"${search}" withString:query];
+                }
+            }
+        }
 
         // check for protocol
         NSString* lowerCase = [string lowercaseString];
         bool hasProtocol = NO;
-        if(!hasProtocol) { if([lowerCase hasPrefix:@"about:"  ]) { hasProtocol = YES; } }
-        if(!hasProtocol) { if([lowerCase hasPrefix:@"http://" ]) { hasProtocol = YES; } }
         if(!hasProtocol) { if([lowerCase hasPrefix:@"https://"]) { hasProtocol = YES; } }
+        if(!hasProtocol) { if([lowerCase hasPrefix:@"http://" ]) { hasProtocol = YES; } }
+        if(!hasProtocol) { if([lowerCase hasPrefix:@"about:"  ]) { hasProtocol = YES; } }
         lowerCase = nil;
 
         NSURL* url;
@@ -66,6 +82,10 @@
         [self navigateToURL:url];
         url = nil;
     }
+}
+
+-(NSURL*)currentURL {
+    return self.webview.webkit.URL;
 }
 
 // === NSWindowDelegate =========================================================================================================
@@ -104,9 +124,7 @@
     // let webview remove its KVOs
     [self.webview cleanup];
 
-    BBApplication* app = [NSApp delegate];
-    [app browserClosed:self];
-    app = nil;
+    [[BBApplication sharedApplication] browserClosed:self];
 }
 
 // === Menu functions ===========================================================================================================

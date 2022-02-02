@@ -5,6 +5,7 @@
     },
     "files.exclude": {
         "**/*.o": true,
-        "_*": true
+        "_*": true,
+        "build/": true
     }
 }

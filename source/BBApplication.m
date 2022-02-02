@@ -1,8 +1,22 @@
 #import <Cocoa/Cocoa.h>
 #import <BBApplication.h>
 #import <BBBrowser.h>
+#import <BBPreferences.h>
+#import <BBHelpers.h>
 
 @implementation BBApplication
+
+// === Lifecycle functions =====================================================================================================
++(instancetype)sharedApplication {
+    static BBApplication* sharedApplication = nil;
+    static dispatch_once_t sharedApplicationToken;
+
+    dispatch_once(&sharedApplicationToken, ^{
+        sharedApplication = [[BBApplication alloc] init];
+    });
+
+    return sharedApplication;
+}
 
 -(instancetype)init {
     self = [super init];
@@ -13,33 +27,7 @@
     return self;
 }
 
--(void)applicationDidFinishLaunching:(NSNotification*)notification {
-    // TODO : restore state (previous pages) at startup
-    [self newTabWithURL:nil];
-}
-
--(NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)sender {
-    // TODO : check if we might want to save anything before exit, if so, prompt,
-    //        and return NSTerminateCancel if we decide to stay open.
-    //        actually, we should probably ask each browser/window/tab if it wants to save before deciding...
-    return NSTerminateNow;
-}
-
--(BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)sender {
-    // we'll handle this ourselves; in browserClosed
-    return NO;
-}
-
--(void)application:(NSApplication*)application openURLs:(NSArray<NSURL*>*)urls {
-    for(NSURL* url in urls) {
-        [self newTabWithURL:url];
-    }
-}
-
--(void)newWindowForTab:(id)sender {
-    [self newTabWithURL:nil];
-}
-
+// === BB functions =============================================================================================================
 -(BBBrowser*)newTabWithURL:(NSURL*)url {
     return [self newTabWithURL:url andConfiguration:nil];
 }
@@ -85,6 +73,57 @@
     if([self.browserList count] == 0) {
         [NSApp terminate:self];
     }
+}
+
+// === NSApplicationDelegate ====================================================================================================
+-(void)applicationDidFinishLaunching:(NSNotification*)notification {
+    BOOL restoreState = [(NSNumber*)[[BBPreferences sharedPreferences] getPreference:@"restoreState"] boolValue];
+    if(restoreState) {
+        // restore state (open urls @ last terminate)
+        NSString* loadPath = bbFilePathFromLibrary(@"restore-pages.json");
+        NSArray<NSString*>* urlStrings = bbJsonLoadPath(loadPath, nil, NO, NO);
+        if((urlStrings != nil) && (urlStrings.count > 0)) {
+            for(NSString* urlString in urlStrings) {
+                [self newTabWithURL:[NSURL URLWithString:urlString]];
+            }
+            return;
+        }
+    }
+
+    [self newTabWithURL:nil];
+}
+
+-(NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)sender {
+    [[BBPreferences sharedPreferences] savePreferences];
+
+    BOOL restoreState = [(NSNumber*)[[BBPreferences sharedPreferences] getPreference:@"restoreState"] boolValue];
+    if(restoreState) {
+        // save state (all open browsers' urls)
+        NSMutableArray<NSString*>* savedURLS = [[NSMutableArray alloc] initWithCapacity:self.browserList.count];
+        for(BBBrowser* browser in self.browserList) {
+            [savedURLS addObject:[[browser currentURL] absoluteString]];
+        }
+
+        NSString* savePath = bbFilePathFromLibrary(@"restore-pages.json");
+        bbJsonSavePath(savePath, savedURLS, nil, YES, YES);
+    }
+
+    return NSTerminateNow;
+}
+
+-(BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)sender {
+    // we'll handle this ourselves; in browserClosed
+    return NO;
+}
+
+-(void)application:(NSApplication*)application openURLs:(NSArray<NSURL*>*)urls {
+    for(NSURL* url in urls) {
+        [self newTabWithURL:url];
+    }
+}
+
+-(void)newWindowForTab:(id)sender {
+    [self newTabWithURL:nil];
 }
 
 @end

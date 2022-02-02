@@ -9,7 +9,6 @@
     NSRect selectionRect = NSInsetRect(self.bounds, 0.5, 0.5);
     [[NSColor keyboardFocusIndicatorColor] set];
     NSRectFillUsingOperation(selectionRect, NSCompositingOperationSourceOver);
-
 }
 
 @end

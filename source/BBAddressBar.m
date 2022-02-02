@@ -39,7 +39,6 @@
     NSTableColumn* column = [[NSTableColumn alloc] initWithIdentifier:@"Completions"];
     column.editable = false;
     [_autocompleteTable addTableColumn:column];
-    column = nil;
 
     _autocompleteTable.selectionHighlightStyle = NSTableViewSelectionHighlightStyleRegular;
     _autocompleteTable.backgroundColor         = [NSColor clearColor];  // [NSColor purpleColor]
@@ -90,7 +89,7 @@
                     case KEYCODE_ENTER : [self autocompleteChosen:self]; /*not nil*/  break;
                     case KEYCODE_RETURN: [self autocompleteChosen:self]; /*not nil*/  break;
                     // TODO : on KEYCODE_DELETE, tell autocompleter to delete that item, and remove it from our list of completions
-                    //        but, how do we differentiate from actually deleting text? maybe we use SHITFT+DELETE?
+                    //        but, how do we differentiate from actually deleting text? maybe we use SHIFT+DELETE?
                 }
             }
             if((event.keyCode == KEYCODE_ENTER) || (event.keyCode == KEYCODE_RETURN)) {
@@ -196,7 +195,7 @@
         return;
     }
 
-    [_autocompleteTable selectRowIndexes:[NSIndexSet indexSetWithIndex:selectedRowIndex] byExtendingSelection:NO];
+    [_autocompleteTable selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)selectedRowIndex] byExtendingSelection:NO];
 }
 
 -(void)autocompleteScrollDown {
@@ -206,12 +205,12 @@
         selectedRowIndex = 0;
     }
 
-    [_autocompleteTable selectRowIndexes:[NSIndexSet indexSetWithIndex:selectedRowIndex] byExtendingSelection:NO];
+    [_autocompleteTable selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)selectedRowIndex] byExtendingSelection:NO];
 }
 
 -(void)autocompleteResize {
-    NSInteger resizeWidth  = self.bounds.size.width;
-    NSInteger resizeHeight = _autocompleteTable.intrinsicContentSize.height;
+    CGFloat resizeWidth  = self.bounds.size.width;
+    CGFloat resizeHeight = _autocompleteTable.intrinsicContentSize.height;
     if(resizeHeight < 24.0f) { resizeHeight = 24.0f; } // TODO : actual size of a single row
     
     NSTableColumn* column = [_autocompleteTable.tableColumns objectAtIndex:0];
@@ -230,7 +229,7 @@
     if(selectedRowIndex >= [_autocompletions count]) {
         return nil;
     }
-    return [_autocompletions objectAtIndex:selectedRowIndex];
+    return [_autocompletions objectAtIndex:(NSUInteger)selectedRowIndex];
 }
 
 -(void)autocompleteChosen:(id)sender {
@@ -246,7 +245,7 @@
 }
 
 -(NSView*)tableView:(NSTableView*)table viewForTableColumn:(NSTableColumn*)column row:(NSInteger)row {
-    NSString* stringAtRow = (row >= _autocompletions.count) ? @"" : [_autocompletions objectAtIndex:row];
+    NSString* stringAtRow = (row >= _autocompletions.count) ? @"" : [_autocompletions objectAtIndex:(NSUInteger)row];
 
     NSTableCellView* cell = [[NSTableCellView alloc] init];
     NSTextField* cellText = [[NSTextField alloc] init];
@@ -276,7 +275,7 @@
 
 -(id)tableView:(NSTableView*)view objectValueForTableColumn:(NSTableColumn*)column row:(NSInteger)row {
     if(row >= _autocompletions.count) { return nil; }
-    return [_autocompletions objectAtIndex:row];
+    return [_autocompletions objectAtIndex:(NSUInteger)row];
 }
 
 @end

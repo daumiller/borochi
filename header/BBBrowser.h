@@ -20,6 +20,7 @@
 // === BB functions =============================================================================================================
 -(void)navigateToURL:(NSURL*)url;
 -(void)navigateToString:(NSString*)string;
+-(NSURL*)currentURL;
 
 // === NSWindowDelegate =========================================================================================================
 -(BOOL)windowShouldClose:(id)sender;
